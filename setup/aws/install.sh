@@ -38,6 +38,8 @@ fi
 rm -rf "$SRC_DIR"
 git clone "https://${GITHUB_TOKEN}@github.com/ProgrammerN/detrack-server.git" "$SRC_DIR"
 cd "$SRC_DIR"
+git config url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+git submodule sync --recursive
 git submodule update --init --recursive
 
 ./gradlew assemble -x checkstyleMain -x checkstyleTest --no-daemon
