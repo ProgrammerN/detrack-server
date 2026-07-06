@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/detrack
-ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar tracker-server.jar conf/traccar.xml
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar detrack-server.jar conf/traccar.xml
 SyslogIdentifier=detrack
 SuccessExitStatus=143
 Restart=on-failure

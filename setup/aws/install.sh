@@ -48,7 +48,7 @@ npm ci
 npm run build
 
 mkdir -p "$INSTALL_DIR"/{conf,data,logs,web,lib,schema,templates/translations}
-cp "$SRC_DIR/target/tracker-server.jar" "$INSTALL_DIR/"
+cp "$SRC_DIR/target/detrack-server.jar" "$INSTALL_DIR/"
 cp "$SRC_DIR/target/lib/"* "$INSTALL_DIR/lib/"
 cp "$SRC_DIR/schema/"* "$INSTALL_DIR/schema/"
 cp -r "$SRC_DIR/templates/"* "$INSTALL_DIR/templates/"
