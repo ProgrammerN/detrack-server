@@ -1,5 +1,5 @@
 [submodule "traccar-web"]
 	path = traccar-web
-	url = ../traccar-web.git
+	url = https://github.com/ProgrammerN/detrack-web.git
 	branch = master
 	ignore = all

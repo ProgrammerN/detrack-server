@@ -1,12 +1,12 @@
-# [Traccar](https://www.traccar.org)
+# Detrack Server
 
 ## Overview
 
-Traccar is an open source GPS tracking system. This repository contains Java-based back-end service. It supports more than 200 GPS protocols and more than 2000 models of GPS tracking devices. Traccar can be used with any major SQL database system. It also provides easy to use [REST API](https://www.traccar.org/traccar-api/).
+Detrack is a customised GPS tracking server based on [Traccar](https://www.traccar.org). This repository contains the Java-based back-end service. It supports more than 200 GPS protocols and more than 2000 models of GPS tracking devices. Detrack can be used with any major SQL database system and provides a [REST API](https://www.traccar.org/traccar-api/).
 
-Other parts of Traccar solution include:
+Other parts of the Detrack solution include:
 
-- [Traccar web app](https://github.com/traccar/traccar-web)
+- [Detrack web app](https://github.com/ProgrammerN/detrack-web)
 - [Traccar Manager app](https://github.com/traccar/traccar-manager)
 
 There is also a set of mobile apps that you can use for tracking mobile devices:
@@ -27,12 +27,11 @@ Some of the available features include:
 
 ## Build
 
-Please read [build from source documentation](https://www.traccar.org/build/) on the official website.
+Please read [build from source documentation](https://www.traccar.org/build/) on the official Traccar website.
 
-## Team
+## Upstream
 
-- Anton Tananaev ([anton@traccar.org](mailto:anton@traccar.org))
-- Andrey Kunitsyn ([andrey@traccar.org](mailto:andrey@traccar.org))
+This project is forked from [traccar/traccar](https://github.com/traccar/traccar).
 
 ## License
 
