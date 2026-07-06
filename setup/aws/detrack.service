@@ -1,0 +1,15 @@
+[Unit]
+Description=Detrack GPS tracking server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/detrack
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar tracker-server.jar conf/traccar.xml
+SyslogIdentifier=detrack
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
