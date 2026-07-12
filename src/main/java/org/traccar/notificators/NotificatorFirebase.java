@@ -106,77 +106,94 @@ public class NotificatorFirebase extends Notificator {
 
     @Override
     public void send(User user, NotificationMessage message, Event event, Position position) throws MessageException {
-        if (user.hasAttribute("notificationTokens")) {
+        if (!user.hasAttribute("notificationTokens")) {
+            LOGGER.warn("Firebase push skipped for user {} ({}): no notificationTokens attribute",
+                    user.getId(), user.getEmail());
+            throw new MessageException("User has no registered push tokens. Open the Detrack app and sign in with the tracking account linked to this user.");
+        }
 
-            List<String> registrationTokens = new ArrayList<>(
-                    Arrays.asList(user.getString("notificationTokens").split("[, ]")));
+        List<String> registrationTokens = new ArrayList<>(
+                Arrays.asList(user.getString("notificationTokens").split("[, ]")));
+        registrationTokens.removeIf(String::isBlank);
+        if (registrationTokens.isEmpty()) {
+            LOGGER.warn("Firebase push skipped for user {} ({}): notificationTokens is empty",
+                    user.getId(), user.getEmail());
+            throw new MessageException("User has no registered push tokens. Open the Detrack app and sign in with the tracking account linked to this user.");
+        }
 
-            var androidConfig = AndroidConfig.builder()
-                    .setNotification(AndroidNotification.builder().setSound("default").build());
+        var androidConfig = AndroidConfig.builder()
+                .setNotification(AndroidNotification.builder().setSound("default").build());
 
-            var apnsConfig = ApnsConfig.builder()
-                    .setAps(Aps.builder().setSound("default").build());
+        var apnsConfig = ApnsConfig.builder()
+                .setAps(Aps.builder().setSound("default").build());
 
-            if (message.priority()) {
-                androidConfig.setPriority(AndroidConfig.Priority.HIGH);
-                apnsConfig.putHeader("apns-priority", "10");
-            }
+        if (message.priority()) {
+            androidConfig.setPriority(AndroidConfig.Priority.HIGH);
+            apnsConfig.putHeader("apns-priority", "10");
+        }
 
-            var messageBuilder = MulticastMessage.builder()
-                    .setAndroidConfig(androidConfig.build())
-                    .setApnsConfig(apnsConfig.build())
-                    .addAllTokens(registrationTokens);
+        var messageBuilder = MulticastMessage.builder()
+                .setAndroidConfig(androidConfig.build())
+                .setApnsConfig(apnsConfig.build())
+                .addAllTokens(registrationTokens);
 
-            putUnifiedPayload(messageBuilder, message, event, position);
+        putUnifiedPayload(messageBuilder, message, event, position);
 
-            if (!"data".equals(mode)) {
-                messageBuilder.setNotification(com.google.firebase.messaging.Notification.builder()
-                        .setTitle(message.subject())
-                        .setBody(message.digest())
-                        .build());
-            }
+        if (!"data".equals(mode)) {
+            messageBuilder.setNotification(com.google.firebase.messaging.Notification.builder()
+                    .setTitle(message.subject())
+                    .setBody(message.digest())
+                    .build());
+        }
 
-            if (event != null && !"direct".equals(mode)) {
-                try {
-                    messageBuilder.putData("event", objectMapper.writeValueAsString(event));
-                    if (position != null) {
-                        messageBuilder.putData("position", objectMapper.writeValueAsString(position));
-                    }
-                } catch (JsonProcessingException e) {
-                    LOGGER.warn("Firebase data serialization error", e);
-                }
-            }
-
+        if (event != null && !"direct".equals(mode)) {
             try {
-                var result = firebaseMessaging.sendEachForMulticast(messageBuilder.build());
-                List<String> failedTokens = new LinkedList<>();
-                var iterator = result.getResponses().listIterator();
-                while (iterator.hasNext()) {
-                    int index = iterator.nextIndex();
-                    var response = iterator.next();
-                    if (!response.isSuccessful()) {
-                        MessagingErrorCode error = response.getException().getMessagingErrorCode();
-                        if (error == MessagingErrorCode.INVALID_ARGUMENT || error == MessagingErrorCode.UNREGISTERED) {
-                            failedTokens.add(registrationTokens.get(index));
-                        }
-                        LOGGER.warn("Firebase user {} error", user.getId(), response.getException());
-                    }
+                messageBuilder.putData("event", objectMapper.writeValueAsString(event));
+                if (position != null) {
+                    messageBuilder.putData("position", objectMapper.writeValueAsString(position));
                 }
-                if (!failedTokens.isEmpty()) {
-                    registrationTokens.removeAll(failedTokens);
-                    if (registrationTokens.isEmpty()) {
-                        user.removeAttribute("notificationTokens");
-                    } else {
-                        user.set("notificationTokens", String.join(",", registrationTokens));
-                    }
-                    storage.updateObject(user, new Request(
-                            new Columns.Include("attributes"),
-                            new Condition.Equals("id", user.getId())));
-                    cacheManager.invalidateObject(true, User.class, user.getId(), ObjectOperation.UPDATE);
-                }
-            } catch (Exception e) {
-                LOGGER.warn("Firebase error", e);
+            } catch (JsonProcessingException e) {
+                LOGGER.warn("Firebase data serialization error", e);
             }
+        }
+
+        try {
+            var result = firebaseMessaging.sendEachForMulticast(messageBuilder.build());
+            List<String> failedTokens = new LinkedList<>();
+            var iterator = result.getResponses().listIterator();
+            while (iterator.hasNext()) {
+                int index = iterator.nextIndex();
+                var response = iterator.next();
+                if (!response.isSuccessful()) {
+                    MessagingErrorCode error = response.getException().getMessagingErrorCode();
+                    if (error == MessagingErrorCode.INVALID_ARGUMENT || error == MessagingErrorCode.UNREGISTERED) {
+                        failedTokens.add(registrationTokens.get(index));
+                    }
+                    LOGGER.warn("Firebase user {} error", user.getId(), response.getException());
+                }
+            }
+            if (result.getSuccessCount() == 0) {
+                throw new MessageException("Firebase rejected all push tokens for this user");
+            }
+            LOGGER.info("Firebase push sent to user {} ({}): {}/{} succeeded",
+                    user.getId(), user.getEmail(), result.getSuccessCount(), registrationTokens.size());
+            if (!failedTokens.isEmpty()) {
+                registrationTokens.removeAll(failedTokens);
+                if (registrationTokens.isEmpty()) {
+                    user.removeAttribute("notificationTokens");
+                } else {
+                    user.set("notificationTokens", String.join(",", registrationTokens));
+                }
+                storage.updateObject(user, new Request(
+                        new Columns.Include("attributes"),
+                        new Condition.Equals("id", user.getId())));
+                cacheManager.invalidateObject(true, User.class, user.getId(), ObjectOperation.UPDATE);
+            }
+        } catch (MessageException e) {
+            throw e;
+        } catch (Exception e) {
+            LOGGER.warn("Firebase error", e);
+            throw new MessageException(e);
         }
     }
 
