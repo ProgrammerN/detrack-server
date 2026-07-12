@@ -232,7 +232,7 @@ public class NotificationResource extends ExtendedObjectResource<Notification> {
                     + "Open the Detrack app on your phone and sign in with " + user.getEmail() + ".");
             return Response.status(Response.Status.CONFLICT).entity(body).build();
         }
-        return Response.status(Response.Status.MULTI_STATUS).entity(body).build();
+        return Response.status(207).entity(body).build();
     }
 
     private static Response skippedResponse(User user, String message) {
