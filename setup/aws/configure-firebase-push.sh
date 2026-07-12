@@ -26,7 +26,7 @@ if ! python3 -c "import json; json.load(open('${FIREBASE_SERVICE_ACCOUNT_JSON}')
   exit 1
 fi
 
-scp -o StrictHostKeyChecking=no -i "$SSH_KEY" "$FIREBASE_SERVICE_ACCOUNT_JSON" "ubuntu@${SERVER_IP}:/tmp/firebase-service-account.json"
+scp -o StrictHostKeyChecking=no -i "$SSH_KEY" "$FIREBASE_SERVICE_ACCOUNT_JSON" "ubuntu@${SERVER_IP}:/tmp/firebase-service-account-upload.json"
 
 ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "ubuntu@${SERVER_IP}" bash -s <<EOF
 set -euo pipefail
@@ -34,7 +34,7 @@ ENV_FILE='/opt/detrack/conf/detrack.env'
 CONF_FILE='/opt/detrack/conf/traccar.xml'
 sudo mkdir -p /opt/detrack/conf
 
-sudo mv /tmp/firebase-service-account.json "$REMOTE_JSON"
+sudo mv /tmp/firebase-service-account-upload.json "$REMOTE_JSON"
 sudo chmod 600 "$REMOTE_JSON"
 
 if [[ -f "\$ENV_FILE" ]]; then
