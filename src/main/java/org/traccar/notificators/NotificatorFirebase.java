@@ -56,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 @Singleton
 public class NotificatorFirebase extends Notificator {
@@ -177,6 +178,8 @@ public class NotificatorFirebase extends Notificator {
                 ? "detrack://device/" + deviceId + "/map" + (eventId > 0 ? "?event=" + eventId : "")
                 : "detrack://inbox";
 
+        String notificationId = UUID.randomUUID().toString();
+        messageBuilder.putData("notificationId", notificationId);
         messageBuilder.putData("type", "tracking.alert");
         messageBuilder.putData("category", category);
         messageBuilder.putData("title", message.subject());
