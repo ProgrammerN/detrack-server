@@ -18,4 +18,7 @@
     <entry key='database.user'>sa</entry>
     <entry key='database.password' />
 
+    <!-- Data-first FCM so the Android app always receives onMessageReceived -->
+    <entry key='notificator.firebase.mode'>data</entry>
+
 </properties>

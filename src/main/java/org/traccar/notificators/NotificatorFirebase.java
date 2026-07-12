@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.model.Device;
 import org.traccar.model.Event;
 import org.traccar.model.ObjectOperation;
 import org.traccar.model.Position;
@@ -111,6 +112,8 @@ public class NotificatorFirebase extends Notificator {
                     .setApnsConfig(apnsConfig.build())
                     .addAllTokens(registrationTokens);
 
+            putUnifiedPayload(messageBuilder, message, event, position);
+
             if (!"data".equals(mode)) {
                 messageBuilder.setNotification(com.google.firebase.messaging.Notification.builder()
                         .setTitle(message.subject())
@@ -118,17 +121,14 @@ public class NotificatorFirebase extends Notificator {
                         .build());
             }
 
-            if (event != null) {
-                messageBuilder.putData("eventId", String.valueOf(event.getId()));
-                if (!"direct".equals(mode)) {
-                    try {
-                        messageBuilder.putData("event", objectMapper.writeValueAsString(event));
-                        if (position != null) {
-                            messageBuilder.putData("position", objectMapper.writeValueAsString(position));
-                        }
-                    } catch (JsonProcessingException e) {
-                        LOGGER.warn("Firebase data serialization error", e);
+            if (event != null && !"direct".equals(mode)) {
+                try {
+                    messageBuilder.putData("event", objectMapper.writeValueAsString(event));
+                    if (position != null) {
+                        messageBuilder.putData("position", objectMapper.writeValueAsString(position));
                     }
+                } catch (JsonProcessingException e) {
+                    LOGGER.warn("Firebase data serialization error", e);
                 }
             }
 
@@ -161,6 +161,44 @@ public class NotificatorFirebase extends Notificator {
                 }
             } catch (Exception e) {
                 LOGGER.warn("Firebase error", e);
+            }
+        }
+    }
+
+    private void putUnifiedPayload(
+            MulticastMessage.Builder messageBuilder,
+            NotificationMessage message,
+            Event event,
+            Position position) {
+        String category = event != null ? event.getType() : "general";
+        long deviceId = event != null ? event.getDeviceId() : 0;
+        long eventId = event != null ? event.getId() : 0;
+        String deepLink = deviceId > 0
+                ? "detrack://device/" + deviceId + "/map" + (eventId > 0 ? "?event=" + eventId : "")
+                : "detrack://inbox";
+
+        messageBuilder.putData("type", "tracking.alert");
+        messageBuilder.putData("category", category);
+        messageBuilder.putData("title", message.subject());
+        messageBuilder.putData("body", message.digest());
+        messageBuilder.putData("deviceId", String.valueOf(deviceId));
+        messageBuilder.putData("eventId", String.valueOf(eventId));
+        messageBuilder.putData("deepLink", deepLink);
+        messageBuilder.putData("timestamp", String.valueOf(System.currentTimeMillis()));
+        messageBuilder.putData("priority", message.priority() ? "high" : "default");
+
+        if (deviceId > 0) {
+            Device device = cacheManager.getObject(Device.class, deviceId);
+            if (device != null) {
+                if (device.getUniqueId() != null) {
+                    messageBuilder.putData("deviceUniqueId", device.getUniqueId());
+                }
+                if (device.getName() != null) {
+                    messageBuilder.putData("deviceName", device.getName());
+                }
+                if (device.getModel() != null) {
+                    messageBuilder.putData("deviceModel", device.getModel());
+                }
             }
         }
     }
