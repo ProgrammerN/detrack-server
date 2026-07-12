@@ -182,7 +182,7 @@ public class SessionResource extends BaseResource {
 
     @Path("notifications/token")
     @POST
-    public Response registerNotificationToken(@FormParam("token") String token) throws StorageException {
+    public Response registerNotificationToken(@FormParam("token") String token) throws Exception {
         if (token == null || token.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity("Token is required").build();
         }
