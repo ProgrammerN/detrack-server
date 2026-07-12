@@ -4,6 +4,8 @@
 
     <!-- Documentation: https://www.traccar.org/configuration-file/ -->
 
+    <entry key='config.useEnvironmentVariables'>true</entry>
+
     <entry key='web.path'>/opt/detrack/web</entry>
     <entry key='web.localizationPath'>/opt/detrack/templates/translations</entry>
     <entry key='web.port'>8082</entry>
@@ -20,5 +22,15 @@
 
     <!-- Data-first FCM so the Android app always receives onMessageReceived -->
     <entry key='notificator.firebase.mode'>data</entry>
+
+    <!-- Reverse geocoding: https://www.traccar.org/reverse-geocoding/ -->
+    <!-- Set GEOCODER_KEY in /opt/detrack/conf/detrack.env (Google Geocoding API key). -->
+    <entry key='geocoder.enable'>true</entry>
+    <entry key='geocoder.type'>google</entry>
+    <!-- Only geocode on report/address requests to control API cost -->
+    <entry key='geocoder.onRequest'>true</entry>
+    <!-- Skip lookup if device moved less than 50 meters since last address -->
+    <entry key='geocoder.reuseDistance'>50</entry>
+    <entry key='geocoder.cacheSize'>1000</entry>
 
 </properties>

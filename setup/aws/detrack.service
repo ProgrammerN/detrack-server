@@ -5,6 +5,8 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/detrack
+Environment=CONFIG_USE_ENVIRONMENT_VARIABLES=true
+EnvironmentFile=-/opt/detrack/conf/detrack.env
 ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar detrack-server.jar conf/traccar.xml
 SyslogIdentifier=detrack
 SuccessExitStatus=143

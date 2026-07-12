@@ -4,6 +4,7 @@ set -euo pipefail
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 DOMAIN="${DOMAIN:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+GEOCODER_KEY="${GEOCODER_KEY:-}"
 REPO_URL="${REPO_URL:-https://github.com/ProgrammerN/detrack-server.git}"
 INSTALL_DIR="/opt/detrack"
 SRC_DIR="/opt/detrack-src"
@@ -60,6 +61,22 @@ cp "$SRC_DIR/setup/aws/nginx-detrack.conf" /etc/nginx/sites-available/detrack
 ln -sf /etc/nginx/sites-available/detrack /etc/nginx/sites-enabled/detrack
 rm -f /etc/nginx/sites-enabled/default
 
+mkdir -p "$INSTALL_DIR/conf"
+if [[ ! -f "$INSTALL_DIR/conf/detrack.env" ]]; then
+  cp "$SRC_DIR/setup/aws/detrack.env.example" "$INSTALL_DIR/conf/detrack.env"
+fi
+if [[ -n "$GEOCODER_KEY" ]]; then
+  sed -i "s|^GEOCODER_KEY=.*|GEOCODER_KEY=${GEOCODER_KEY}|" "$INSTALL_DIR/conf/detrack.env"
+fi
+chmod 600 "$INSTALL_DIR/conf/detrack.env"
+
+if [[ -n "$DOMAIN" && "$DOMAIN" != "_" ]]; then
+  sed -i "s/server_name _;/server_name ${DOMAIN};/" /etc/nginx/sites-available/detrack
+  if ! grep -q "<entry key='web.url'>" "$INSTALL_DIR/conf/traccar.xml"; then
+    sed -i "/<\\/properties>/i\\    <entry key='web.url'>https://${DOMAIN}</entry>" "$INSTALL_DIR/conf/traccar.xml"
+  fi
+fi
+
 chown -R root:root "$INSTALL_DIR"
 chmod -R go+rX "$INSTALL_DIR"
 
@@ -70,7 +87,10 @@ nginx -t
 systemctl restart nginx
 
 if [[ -n "$DOMAIN" && -n "$ADMIN_EMAIL" && "$DOMAIN" != "_" ]]; then
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$ADMIN_EMAIL" --redirect || true
+  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$ADMIN_EMAIL" --redirect
+  systemctl reload nginx
+else
+  echo "HTTPS skipped (set DOMAIN and ADMIN_EMAIL to enable Let's Encrypt)."
 fi
 
 echo "=== Detrack install finished at $(date -u) ==="

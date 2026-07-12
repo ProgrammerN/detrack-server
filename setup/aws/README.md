@@ -96,3 +96,44 @@ If you outgrow 1 GB RAM or H2:
 - [ ] Enable HTTPS with a real domain
 - [ ] Restrict SSH to your IP in Lightsail networking
 - [ ] Set up Lightsail snapshots ($1/mo for 20 GB) for backups
+
+## Reverse geocoding (Google)
+
+Traccar uses the **[Google Geocoding API](https://developers.google.com/maps/documentation/geocoding)** for reverse geocoding — this is **not** the Places API. In Google Cloud Console:
+
+1. Enable **Geocoding API** on your project
+2. Create an API key (restrict by server IP `3.239.244.194` and API = Geocoding only)
+3. Apply the key on the server:
+
+```bash
+chmod +x setup/aws/configure-geocoder.sh
+GEOCODER_KEY=AIzaSy... ./setup/aws/configure-geocoder.sh
+```
+
+Or during install/upgrade:
+
+```bash
+export GEOCODER_KEY=AIzaSy...
+sudo -E bash setup/aws/install.sh
+```
+
+Geocoding runs **on request** (reports / “show address” in the app) with a 50 m reuse distance to limit API cost.
+
+## HTTPS (Let's Encrypt)
+
+You need a **domain name** pointing to the server IP (A record). IP-only HTTPS is not supported by Let's Encrypt.
+
+**New instance:**
+
+```bash
+DOMAIN=track.yourdomain.com ADMIN_EMAIL=you@example.com ./setup/aws/deploy-lightsail.sh
+```
+
+**Existing instance** (`3.239.244.194`):
+
+```bash
+chmod +x setup/aws/enable-https.sh
+DOMAIN=track.yourdomain.com ADMIN_EMAIL=you@example.com ./setup/aws/enable-https.sh
+```
+
+Port 443 is opened automatically. Certbot configures Nginx redirect HTTP → HTTPS.
