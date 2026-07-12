@@ -172,11 +172,6 @@ public class NotificatorFirebase extends Notificator {
                     LOGGER.warn("Firebase user {} error", user.getId(), response.getException());
                 }
             }
-            if (result.getSuccessCount() == 0) {
-                throw new MessageException("Firebase rejected all push tokens for this user");
-            }
-            LOGGER.info("Firebase push sent to user {} ({}): {}/{} succeeded",
-                    user.getId(), user.getEmail(), result.getSuccessCount(), registrationTokens.size());
             if (!failedTokens.isEmpty()) {
                 registrationTokens.removeAll(failedTokens);
                 if (registrationTokens.isEmpty()) {
@@ -189,6 +184,13 @@ public class NotificatorFirebase extends Notificator {
                         new Condition.Equals("id", user.getId())));
                 cacheManager.invalidateObject(true, User.class, user.getId(), ObjectOperation.UPDATE);
             }
+            if (result.getSuccessCount() == 0) {
+                throw new MessageException(
+                        "Firebase rejected all push tokens (expired or unregistered). "
+                        + "Open the Detrack app on your phone while signed into the tracking account to register a fresh token.");
+            }
+            LOGGER.info("Firebase push sent to user {} ({}): {}/{} succeeded",
+                    user.getId(), user.getEmail(), result.getSuccessCount(), registrationTokens.size());
         } catch (MessageException e) {
             throw e;
         } catch (Exception e) {
