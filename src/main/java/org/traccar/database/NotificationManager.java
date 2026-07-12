@@ -146,7 +146,8 @@ public class NotificationManager {
                         try {
                             notificatorManager.getNotificator(notificator).send(notification, user, event, position);
                         } catch (MessageException exception) {
-                            LOGGER.warn("Notification failed", exception);
+                            LOGGER.warn("Notification skipped or failed for user {}: {}",
+                                    user.getId(), exception.getMessage());
                         }
                     }
                 });

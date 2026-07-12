@@ -40,6 +40,7 @@ import org.traccar.model.ObjectOperation;
 import org.traccar.model.Position;
 import org.traccar.model.User;
 import org.traccar.notification.MessageException;
+import org.traccar.notification.NotificationSkippedException;
 import org.traccar.notification.NotificationFormatter;
 import org.traccar.notification.NotificationMessage;
 import org.traccar.session.cache.CacheManager;
@@ -104,12 +105,20 @@ public class NotificatorFirebase extends Notificator {
         throw new IOException("Firebase service account is not configured");
     }
 
+    private static final String NO_PUSH_TOKENS_MESSAGE =
+            "No mobile push token registered for this user. "
+            + "They need to open the Detrack app and sign in with this tracking account.";
+
+    private static final String EXPIRED_PUSH_TOKENS_MESSAGE =
+            "Push token expired or invalid. "
+            + "Ask the user to open the Detrack app once while signed in to refresh their token.";
+
     @Override
     public void send(User user, NotificationMessage message, Event event, Position position) throws MessageException {
         if (!user.hasAttribute("notificationTokens")) {
             LOGGER.warn("Firebase push skipped for user {} ({}): no notificationTokens attribute",
                     user.getId(), user.getEmail());
-            throw new MessageException("User has no registered push tokens. Open the Detrack app and sign in with the tracking account linked to this user.");
+            throw new NotificationSkippedException(NO_PUSH_TOKENS_MESSAGE);
         }
 
         List<String> registrationTokens = new ArrayList<>(
@@ -118,7 +127,7 @@ public class NotificatorFirebase extends Notificator {
         if (registrationTokens.isEmpty()) {
             LOGGER.warn("Firebase push skipped for user {} ({}): notificationTokens is empty",
                     user.getId(), user.getEmail());
-            throw new MessageException("User has no registered push tokens. Open the Detrack app and sign in with the tracking account linked to this user.");
+            throw new NotificationSkippedException(NO_PUSH_TOKENS_MESSAGE);
         }
 
         var androidConfig = AndroidConfig.builder()
@@ -185,9 +194,7 @@ public class NotificatorFirebase extends Notificator {
                 cacheManager.invalidateObject(true, User.class, user.getId(), ObjectOperation.UPDATE);
             }
             if (result.getSuccessCount() == 0) {
-                throw new MessageException(
-                        "Firebase rejected all push tokens (expired or unregistered). "
-                        + "Open the Detrack app on your phone while signed into the tracking account to register a fresh token.");
+                throw new NotificationSkippedException(EXPIRED_PUSH_TOKENS_MESSAGE);
             }
             LOGGER.info("Firebase push sent to user {} ({}): {}/{} succeeded",
                     user.getId(), user.getEmail(), result.getSuccessCount(), registrationTokens.size());

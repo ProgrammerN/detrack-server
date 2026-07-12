@@ -34,6 +34,7 @@ import org.traccar.model.Notification;
 import org.traccar.model.Typed;
 import org.traccar.model.User;
 import org.traccar.notification.MessageException;
+import org.traccar.notification.NotificationSkippedException;
 import org.traccar.notification.NotificationMessage;
 import org.traccar.notification.NotificatorManager;
 import org.traccar.storage.StorageException;
@@ -45,7 +46,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -92,28 +96,51 @@ public class NotificationResource extends ExtendedObjectResource<Notification> {
 
     @POST
     @Path("test")
-    public Response testMessage() throws MessageException, StorageException {
+    public Response testMessage() throws StorageException {
         User user = permissionsService.getUser(getUserId());
+        Map<String, Object> results = new LinkedHashMap<>();
+        int sent = 0;
+        int skipped = 0;
         for (Typed method : notificatorManager.getAllNotificatorTypes()) {
-            notificatorManager.getNotificator(method.type()).send(null, user, new Event("test", 0), null);
+            try {
+                notificatorManager.getNotificator(method.type()).send(null, user, new Event("test", 0), null);
+                results.put(method.type(), Map.of("sent", true));
+                sent++;
+            } catch (NotificationSkippedException exception) {
+                results.put(method.type(), Map.of("skipped", true, "message", exception.getMessage()));
+                skipped++;
+                LOGGER.info("Test notification skipped via {} for user {} ({})",
+                        method.type(), user.getId(), user.getEmail());
+            } catch (MessageException exception) {
+                results.put(method.type(), Map.of("failed", true, "message", exception.getMessage()));
+                LOGGER.warn("Test notification failed via {}", method.type(), exception);
+            }
         }
-        return Response.noContent().build();
+        return buildTestResponse(user, sent, skipped, results);
     }
 
     @POST
     @Path("test/{notificator}")
-    public Response testMessage(@PathParam("notificator") String notificator)
-            throws MessageException, StorageException {
+    public Response testMessage(@PathParam("notificator") String notificator) throws StorageException {
         User user = permissionsService.getUser(getUserId());
-        notificatorManager.getNotificator(notificator).send(null, user, new Event("test", 0), null);
-        return Response.noContent().build();
+        try {
+            notificatorManager.getNotificator(notificator).send(null, user, new Event("test", 0), null);
+            return Response.noContent().build();
+        } catch (NotificationSkippedException exception) {
+            LOGGER.info("Test notification skipped via {} for user {} ({})",
+                    notificator, user.getId(), user.getEmail());
+            return skippedResponse(user, exception.getMessage());
+        } catch (MessageException exception) {
+            LOGGER.warn("Test notification failed via {}", notificator, exception);
+            return Response.status(Response.Status.BAD_REQUEST).entity(exception.getMessage()).build();
+        }
     }
 
     @POST
     @Path("send/{notificator}")
     public Response sendMessage(
             @PathParam("notificator") String notificator, @QueryParam("userId") List<Long> userIds,
-            NotificationMessage message) throws MessageException, StorageException {
+            NotificationMessage message) throws StorageException {
         permissionsService.checkManager(getUserId());
         List<User> users;
         if (userIds.isEmpty()) {
@@ -136,12 +163,93 @@ public class NotificationResource extends ExtendedObjectResource<Notification> {
                         User.class, new Request(new Columns.All(), Condition.merge(conditions))));
             }
         }
+
+        int sent = 0;
+        int skipped = 0;
+        int failed = 0;
+        List<Map<String, Object>> skippedUsers = new LinkedList<>();
+        List<Map<String, Object>> failedUsers = new LinkedList<>();
+
         for (User user : users) {
-            if (!user.getTemporary()) {
+            if (user == null || user.getTemporary()) {
+                continue;
+            }
+            try {
                 notificatorManager.getNotificator(notificator).send(user, message, null, null);
+                sent++;
+            } catch (NotificationSkippedException exception) {
+                skipped++;
+                skippedUsers.add(skippedUserEntry(user, exception.getMessage()));
+                LOGGER.info("Notification skipped for user {} ({}) via {}: {}",
+                        user.getId(), user.getEmail(), notificator, exception.getMessage());
+            } catch (MessageException exception) {
+                failed++;
+                failedUsers.add(skippedUserEntry(user, exception.getMessage()));
+                LOGGER.warn("Notification failed for user {} ({})", user.getId(), user.getEmail(), exception);
             }
         }
-        return Response.noContent().build();
+
+        if (sent > 0) {
+            if (skipped > 0 || failed > 0) {
+                LOGGER.info("Notification batch via {}: sent={}, skipped={}, failed={}",
+                        notificator, sent, skipped, failed);
+            }
+            return Response.noContent().build();
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("sent", sent);
+        body.put("skipped", skipped);
+        body.put("failed", failed);
+        if (!skippedUsers.isEmpty()) {
+            body.put("skippedUsers", skippedUsers);
+        }
+        if (!failedUsers.isEmpty()) {
+            body.put("failedUsers", failedUsers);
+        }
+        if (skipped > 0 && failed == 0) {
+            body.put("message", "No recipients had a registered mobile push token. "
+                    + "Users must open the Detrack app and sign in to receive push notifications.");
+            return Response.status(Response.Status.CONFLICT).entity(body).build();
+        }
+        body.put("message", "Notification could not be delivered to any selected users.");
+        return Response.status(Response.Status.BAD_REQUEST).entity(body).build();
+    }
+
+    private static Response buildTestResponse(
+            User user, int sent, int skipped, Map<String, Object> results) {
+        if (sent > 0 && skipped == 0) {
+            return Response.noContent().build();
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("userId", user.getId());
+        body.put("email", user.getEmail());
+        body.put("sent", sent);
+        body.put("skipped", skipped);
+        body.put("results", results);
+        if (sent == 0 && skipped > 0) {
+            body.put("message", "No push token registered for this account. "
+                    + "Open the Detrack app on your phone and sign in with " + user.getEmail() + ".");
+            return Response.status(Response.Status.CONFLICT).entity(body).build();
+        }
+        return Response.status(Response.Status.MULTI_STATUS).entity(body).build();
+    }
+
+    private static Response skippedResponse(User user, String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("skipped", true);
+        body.put("userId", user.getId());
+        body.put("email", user.getEmail());
+        body.put("message", message);
+        return Response.status(Response.Status.CONFLICT).entity(body).build();
+    }
+
+    private static Map<String, Object> skippedUserEntry(User user, String message) {
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("userId", user.getId());
+        entry.put("email", user.getEmail());
+        entry.put("message", message);
+        return entry;
     }
 
 }

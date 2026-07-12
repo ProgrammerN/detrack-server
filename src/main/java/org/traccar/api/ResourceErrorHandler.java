@@ -19,6 +19,9 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 
+import org.traccar.notification.MessageException;
+import org.traccar.notification.NotificationSkippedException;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -26,6 +29,13 @@ public class ResourceErrorHandler implements ExceptionMapper<Exception> {
 
     @Override
     public Response toResponse(Exception exception) {
+        if (exception instanceof NotificationSkippedException skipped) {
+            return Response.status(Response.Status.CONFLICT).entity(skipped.getMessage()).build();
+        }
+        if (exception instanceof MessageException messageException) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(messageException.getMessage()).build();
+        }
+
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
         exception.printStackTrace(printWriter);

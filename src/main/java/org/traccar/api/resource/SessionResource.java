@@ -23,8 +23,10 @@ import org.traccar.api.signature.TokenManager;
 import org.traccar.database.OpenIdProvider;
 import org.traccar.helper.LogAction;
 import org.traccar.helper.SessionHelper;
+import org.traccar.model.ObjectOperation;
 import org.traccar.model.RevokedToken;
 import org.traccar.model.User;
+import org.traccar.session.cache.CacheManager;
 import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
@@ -51,7 +53,10 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 @Path("session")
 @Produces(MediaType.APPLICATION_JSON)
@@ -70,6 +75,9 @@ public class SessionResource extends BaseResource {
 
     @Inject
     private LogAction actionLogger;
+
+    @Inject
+    private CacheManager cacheManager;
 
     @Context
     private HttpServletRequest request;
@@ -170,6 +178,72 @@ public class SessionResource extends BaseResource {
         revokedToken.setId(data.getId());
         storage.addObject(revokedToken, new Request(new Columns.Include("id")));
         return Response.noContent().build();
+    }
+
+    @Path("notifications/token")
+    @POST
+    public Response registerNotificationToken(@FormParam("token") String token) throws StorageException {
+        if (token == null || token.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Token is required").build();
+        }
+
+        long userId = getUserId();
+        User user = storage.getObject(User.class, new Request(
+                new Columns.All(), new Condition.Equals("id", userId)));
+        if (user == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        List<String> tokens = parseNotificationTokens(user);
+        tokens.removeIf(String::isBlank);
+        if (!tokens.contains(token)) {
+            tokens.add(token);
+        }
+        user.set("notificationTokens", String.join(",", tokens));
+
+        storage.updateObject(user, new Request(
+                new Columns.Include("attributes"),
+                new Condition.Equals("id", userId)));
+        cacheManager.invalidateObject(true, User.class, userId, ObjectOperation.UPDATE);
+
+        return Response.noContent().build();
+    }
+
+    @Path("notifications/token")
+    @DELETE
+    public Response removeNotificationToken(@FormParam("token") String token) throws StorageException {
+        if (token == null || token.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Token is required").build();
+        }
+
+        long userId = getUserId();
+        User user = storage.getObject(User.class, new Request(
+                new Columns.All(), new Condition.Equals("id", userId)));
+        if (user == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        List<String> tokens = parseNotificationTokens(user);
+        tokens.removeIf(t -> t.isBlank() || t.equals(token));
+        if (tokens.isEmpty()) {
+            user.removeAttribute("notificationTokens");
+        } else {
+            user.set("notificationTokens", String.join(",", tokens));
+        }
+
+        storage.updateObject(user, new Request(
+                new Columns.Include("attributes"),
+                new Condition.Equals("id", userId)));
+        cacheManager.invalidateObject(true, User.class, userId, ObjectOperation.UPDATE);
+
+        return Response.noContent().build();
+    }
+
+    private static List<String> parseNotificationTokens(User user) {
+        if (!user.hasAttribute("notificationTokens")) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(Arrays.asList(user.getString("notificationTokens").split("[, ]")));
     }
 
     @PermitAll
