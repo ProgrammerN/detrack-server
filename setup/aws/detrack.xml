@@ -23,7 +23,8 @@
     <!-- Data-first FCM so the Android app always receives onMessageReceived -->
     <entry key='notificator.types'>web,mail,command,firebase</entry>
     <entry key='notificator.firebase.mode'>data</entry>
-    <!-- Service account JSON: set NOTIFICATOR_FIREBASE_SERVICE_ACCOUNT in /opt/detrack/conf/detrack.env -->
+    <!-- Service account JSON file (configure-firebase-push.sh). Do not use detrack.env — systemd breaks \n in keys. -->
+    <entry key='notificator.firebase.serviceAccountFile'>/opt/detrack/conf/firebase-service-account.json</entry>
 
     <!-- Reverse geocoding: https://www.traccar.org/reverse-geocoding/ -->
     <!-- Set GEOCODER_KEY in /opt/detrack/conf/detrack.env (Google Geocoding API key). -->

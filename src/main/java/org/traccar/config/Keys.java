@@ -1394,6 +1394,14 @@ public final class Keys {
             List.of(KeyType.CONFIG));
 
     /**
+     * Path to Firebase service account JSON file. Preferred over inline JSON because
+     * systemd EnvironmentFile mangles escaped newlines in private keys.
+     */
+    public static final ConfigKey<String> NOTIFICATOR_FIREBASE_SERVICE_ACCOUNT_FILE = new StringConfigKey(
+            "notificator.firebase.serviceAccountFile",
+            List.of(KeyType.CONFIG));
+
+    /**
      * Firebase message delivery mode. Supported values are {@code direct} (notification payload only,
      * default and current behavior), {@code data} (data-only payload for the client app to handle),
      * and {@code mixed} (both notification and data payloads).

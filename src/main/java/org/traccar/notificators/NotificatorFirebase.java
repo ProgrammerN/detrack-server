@@ -49,6 +49,7 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -79,8 +80,7 @@ public class NotificatorFirebase extends Notificator {
         this.objectMapper = objectMapper;
         this.mode = config.getString(Keys.NOTIFICATOR_FIREBASE_MODE);
 
-        InputStream serviceAccount = new ByteArrayInputStream(
-                config.getString(Keys.NOTIFICATOR_FIREBASE_SERVICE_ACCOUNT).getBytes(StandardCharsets.UTF_8));
+        InputStream serviceAccount = openServiceAccountStream(config);
 
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
@@ -88,6 +88,20 @@ public class NotificatorFirebase extends Notificator {
 
         firebaseMessaging = FirebaseMessaging.getInstance(
                 FirebaseApp.initializeApp(options, "manager"));
+    }
+
+    private static InputStream openServiceAccountStream(Config config) throws IOException {
+        String inlineAccount = config.getString(Keys.NOTIFICATOR_FIREBASE_SERVICE_ACCOUNT);
+        if (inlineAccount != null && !inlineAccount.isBlank()) {
+            return new ByteArrayInputStream(inlineAccount.getBytes(StandardCharsets.UTF_8));
+        }
+
+        String accountFile = config.getString(Keys.NOTIFICATOR_FIREBASE_SERVICE_ACCOUNT_FILE);
+        if (accountFile != null && !accountFile.isBlank()) {
+            return new FileInputStream(accountFile);
+        }
+
+        throw new IOException("Firebase service account is not configured");
     }
 
     @Override
