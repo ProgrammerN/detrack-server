@@ -1,11 +1,14 @@
-#set($subject = "$esc.html($device.name): offline")
-#set($digest = "$device.name offline at $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($deviceLabel = "#{if}($device.model)$device.model#{else}$device.name#{end}")
+#set($deviceLabelHtml = "#{if}($device.model)$esc.html($device.model)#{else}$esc.html($device.name)#{end}")
+#set($eventTime = $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone))
+#set($subject = "$esc.html($deviceLabel) is offline")
+#set($digest = "$deviceLabel went offline at $eventTime")
 <!DOCTYPE html>
 <html>
 <body>
-Device: $esc.html($device.name)<br>
+Device: $deviceLabelHtml<br>
 Offline<br>
-Time: $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)<br>
+Time: $eventTime<br>
 <br>
 <a href="$webUrl/settings/notifications?token=$token">Unsubscribe</a>
 </body>

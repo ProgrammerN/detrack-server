@@ -130,20 +130,31 @@ public class NotificatorFirebase extends Notificator {
             throw new NotificationSkippedException(NO_PUSH_TOKENS_MESSAGE);
         }
 
-        var androidConfig = AndroidConfig.builder()
-                .setNotification(AndroidNotification.builder().setSound("default").build());
+        var androidConfigBuilder = AndroidConfig.builder();
+        var apnsApsBuilder = Aps.builder();
 
-        var apnsConfig = ApnsConfig.builder()
-                .setAps(Aps.builder().setSound("default").build());
+        if ("data".equals(mode)) {
+            apnsApsBuilder.setContentAvailable(true);
+        } else {
+            apnsApsBuilder.setSound("default");
+            androidConfigBuilder.setNotification(
+                    AndroidNotification.builder()
+                            .setSound("default")
+                            .setChannelId("detrack_tracking_alerts")
+                            .build());
+        }
 
+        var apnsConfigBuilder = ApnsConfig.builder().setAps(apnsApsBuilder.build());
         if (message.priority()) {
-            androidConfig.setPriority(AndroidConfig.Priority.HIGH);
-            apnsConfig.putHeader("apns-priority", "10");
+            androidConfigBuilder.setPriority(AndroidConfig.Priority.HIGH);
+            apnsConfigBuilder.putHeader("apns-priority", "10");
+        } else if ("data".equals(mode)) {
+            androidConfigBuilder.setPriority(AndroidConfig.Priority.HIGH);
         }
 
         var messageBuilder = MulticastMessage.builder()
-                .setAndroidConfig(androidConfig.build())
-                .setApnsConfig(apnsConfig.build())
+                .setAndroidConfig(androidConfigBuilder.build())
+                .setApnsConfig(apnsConfigBuilder.build())
                 .addAllTokens(registrationTokens);
 
         putUnifiedPayload(messageBuilder, message, event, position);
